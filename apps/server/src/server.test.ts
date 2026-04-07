@@ -73,6 +73,7 @@ import {
 import { ServerLifecycleEvents, type ServerLifecycleEventsShape } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup, type ServerRuntimeStartupShape } from "./serverRuntimeStartup.ts";
 import { ServerSettingsService, type ServerSettingsShape } from "./serverSettings.ts";
+import { ServiceManager } from "./services/Services/ServiceManager.ts";
 import { TerminalManager, type TerminalManagerShape } from "./terminal/Services/Manager.ts";
 import {
   BrowserTraceCollector,
@@ -414,6 +415,22 @@ const buildAppUnderTest = (options?: {
           markHttpListening: Effect.void,
           enqueueCommand: (effect) => effect,
           ...options?.layers?.serverRuntimeStartup,
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(ServiceManager)({
+          list: () => Effect.succeed({ services: [], tasks: [], configLoaded: false }),
+          start: () =>
+            Effect.succeed({ id: "", type: "docker", status: "stopped", ports: [], depends: [] }),
+          stop: () =>
+            Effect.succeed({ id: "", type: "docker", status: "stopped", ports: [], depends: [] }),
+          restart: () =>
+            Effect.succeed({ id: "", type: "docker", status: "stopped", ports: [], depends: [] }),
+          startTask: () =>
+            Effect.succeed({ id: "", status: "stopped", intervalSeconds: 30, depends: [] }),
+          stopTask: () =>
+            Effect.succeed({ id: "", status: "stopped", intervalSeconds: 30, depends: [] }),
+          streamStatus: Stream.empty,
         }),
       ),
       Layer.provide(workspaceAndProjectServicesLayer),

@@ -5,6 +5,7 @@ import {
   FolderIcon,
   GitPullRequestIcon,
   PlusIcon,
+  ServerIcon,
   SettingsIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -77,6 +78,7 @@ import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useThreadActions } from "../hooks/useThreadActions";
 import { toastManager } from "./ui/toast";
 import { formatRelativeTimeLabel } from "../timestampFormat";
+import { ServicesSidebarStatus } from "./services/ServicesSidebarStatus";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import {
   getArm64IntelBuildWarningDescription,
@@ -2131,6 +2133,17 @@ export default function Sidebar() {
           <SidebarFooter className="p-2">
             <SidebarUpdatePill />
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  size="sm"
+                  className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                  onClick={() => void navigate({ to: "/services" })}
+                >
+                  <ServerIcon className="size-3.5" />
+                  <span className="text-xs">Services</span>
+                  <ServicesSidebarStatus />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="sm"

@@ -38,6 +38,7 @@ import {
   clearPromotedDraftThreads,
   useComposerDraftStore,
 } from "../composerDraftStore";
+import { useServicesStore } from "../servicesStore";
 import { useStore } from "../store";
 import { useUiStateStore } from "../uiStateStore";
 import { useTerminalStateStore } from "../terminalStateStore";
@@ -561,6 +562,10 @@ function EventRouter() {
       }
       applyTerminalEvent(event);
     });
+    const wsRpc = getWsRpcClient();
+    const unsubServicesStatus = wsRpc.services.onStatus((snapshot) => {
+      useServicesStore.getState().applySnapshot(snapshot);
+    });
     return () => {
       disposed = true;
       disposedRef.current = true;
@@ -570,6 +575,7 @@ function EventRouter() {
       queryInvalidationThrottler.cancel();
       unsubDomainEvent();
       unsubTerminalEvent();
+      unsubServicesStatus();
     };
   }, [
     applyOrchestrationEvents,

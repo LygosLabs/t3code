@@ -53,6 +53,15 @@ import {
   ProjectWriteFileResult,
 } from "./project";
 import {
+  ServiceActionInput,
+  ServiceError,
+  ServiceState,
+  ServicesSnapshot,
+  ServicesStatusEvent,
+  TaskActionInput,
+  TaskState,
+} from "./services";
+import {
   TerminalClearInput,
   TerminalCloseInput,
   TerminalError,
@@ -112,7 +121,16 @@ export const WS_METHODS = {
   serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
 
+  // Services methods
+  servicesList: "services.list",
+  servicesStart: "services.start",
+  servicesStop: "services.stop",
+  servicesRestart: "services.restart",
+  servicesStartTask: "services.startTask",
+  servicesStopTask: "services.stopTask",
+
   // Streaming subscriptions
+  subscribeServicesStatus: "subscribeServicesStatus",
   subscribeGitStatus: "subscribeGitStatus",
   subscribeOrchestrationDomainEvents: "subscribeOrchestrationDomainEvents",
   subscribeTerminalEvents: "subscribeTerminalEvents",
@@ -334,6 +352,51 @@ export const WsSubscribeServerLifecycleRpc = Rpc.make(WS_METHODS.subscribeServer
   stream: true,
 });
 
+// ── Services RPCs ──────────────────────────────────────────────────────
+
+export const WsServicesListRpc = Rpc.make(WS_METHODS.servicesList, {
+  payload: Schema.Struct({}),
+  success: ServicesSnapshot,
+  error: ServiceError,
+});
+
+export const WsServicesStartRpc = Rpc.make(WS_METHODS.servicesStart, {
+  payload: ServiceActionInput,
+  success: ServiceState,
+  error: ServiceError,
+});
+
+export const WsServicesStopRpc = Rpc.make(WS_METHODS.servicesStop, {
+  payload: ServiceActionInput,
+  success: ServiceState,
+  error: ServiceError,
+});
+
+export const WsServicesRestartRpc = Rpc.make(WS_METHODS.servicesRestart, {
+  payload: ServiceActionInput,
+  success: ServiceState,
+  error: ServiceError,
+});
+
+export const WsServicesStartTaskRpc = Rpc.make(WS_METHODS.servicesStartTask, {
+  payload: TaskActionInput,
+  success: TaskState,
+  error: ServiceError,
+});
+
+export const WsServicesStopTaskRpc = Rpc.make(WS_METHODS.servicesStopTask, {
+  payload: TaskActionInput,
+  success: TaskState,
+  error: ServiceError,
+});
+
+export const WsSubscribeServicesStatusRpc = Rpc.make(WS_METHODS.subscribeServicesStatus, {
+  payload: Schema.Struct({}),
+  success: ServicesStatusEvent,
+  error: ServiceError,
+  stream: true,
+});
+
 export const WsRpcGroup = RpcGroup.make(
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
@@ -370,4 +433,11 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationGetTurnDiffRpc,
   WsOrchestrationGetFullThreadDiffRpc,
   WsOrchestrationReplayEventsRpc,
+  WsServicesListRpc,
+  WsServicesStartRpc,
+  WsServicesStopRpc,
+  WsServicesRestartRpc,
+  WsServicesStartTaskRpc,
+  WsServicesStopTaskRpc,
+  WsSubscribeServicesStatusRpc,
 );

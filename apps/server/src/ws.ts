@@ -42,6 +42,7 @@ import { ProviderRegistry } from "./provider/Services/ProviderRegistry";
 import { ServerLifecycleEvents } from "./serverLifecycleEvents";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup";
 import { ServerSettingsService } from "./serverSettings";
+import { ServiceManager } from "./services/Services/ServiceManager";
 import { TerminalManager } from "./terminal/Services/Manager";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem";
@@ -58,6 +59,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const gitManager = yield* GitManager;
     const git = yield* GitCore;
     const gitStatusBroadcaster = yield* GitStatusBroadcaster;
+    const serviceManager = yield* ServiceManager;
     const terminalManager = yield* TerminalManager;
     const providerRegistry = yield* ProviderRegistry;
     const config = yield* ServerConfig;
@@ -734,6 +736,36 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           }),
           { "rpc.aggregate": "server" },
         ),
+      // ── Services ──────────────────────────────────────────────────────
+      [WS_METHODS.servicesList]: (_input) =>
+        observeRpcEffect(WS_METHODS.servicesList, serviceManager.list(), {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.servicesStart]: (input) =>
+        observeRpcEffect(WS_METHODS.servicesStart, serviceManager.start(input), {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.servicesStop]: (input) =>
+        observeRpcEffect(WS_METHODS.servicesStop, serviceManager.stop(input), {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.servicesRestart]: (input) =>
+        observeRpcEffect(WS_METHODS.servicesRestart, serviceManager.restart(input), {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.servicesStartTask]: (input) =>
+        observeRpcEffect(WS_METHODS.servicesStartTask, serviceManager.startTask(input), {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.servicesStopTask]: (input) =>
+        observeRpcEffect(WS_METHODS.servicesStopTask, serviceManager.stopTask(input), {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.subscribeServicesStatus]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribeServicesStatus, serviceManager.streamStatus, {
+          "rpc.aggregate": "services",
+        }),
+
       [WS_METHODS.subscribeServerLifecycle]: (_input) =>
         observeRpcStreamEffect(
           WS_METHODS.subscribeServerLifecycle,

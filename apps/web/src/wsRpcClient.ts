@@ -99,6 +99,15 @@ export interface WsRpcClient {
     readonly subscribeConfig: RpcStreamMethod<typeof WS_METHODS.subscribeServerConfig>;
     readonly subscribeLifecycle: RpcStreamMethod<typeof WS_METHODS.subscribeServerLifecycle>;
   };
+  readonly services: {
+    readonly list: RpcUnaryNoArgMethod<typeof WS_METHODS.servicesList>;
+    readonly start: RpcUnaryMethod<typeof WS_METHODS.servicesStart>;
+    readonly stop: RpcUnaryMethod<typeof WS_METHODS.servicesStop>;
+    readonly restart: RpcUnaryMethod<typeof WS_METHODS.servicesRestart>;
+    readonly startTask: RpcUnaryMethod<typeof WS_METHODS.servicesStartTask>;
+    readonly stopTask: RpcUnaryMethod<typeof WS_METHODS.servicesStopTask>;
+    readonly onStatus: RpcStreamMethod<typeof WS_METHODS.subscribeServicesStatus>;
+  };
   readonly orchestration: {
     readonly getSnapshot: RpcUnaryNoArgMethod<typeof ORCHESTRATION_WS_METHODS.getSnapshot>;
     readonly dispatchCommand: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.dispatchCommand>;
@@ -222,6 +231,22 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
       subscribeLifecycle: (listener, options) =>
         transport.subscribe(
           (client) => client[WS_METHODS.subscribeServerLifecycle]({}),
+          listener,
+          options,
+        ),
+    },
+    services: {
+      list: () => transport.request((client) => client[WS_METHODS.servicesList]({})),
+      start: (input) => transport.request((client) => client[WS_METHODS.servicesStart](input)),
+      stop: (input) => transport.request((client) => client[WS_METHODS.servicesStop](input)),
+      restart: (input) => transport.request((client) => client[WS_METHODS.servicesRestart](input)),
+      startTask: (input) =>
+        transport.request((client) => client[WS_METHODS.servicesStartTask](input)),
+      stopTask: (input) =>
+        transport.request((client) => client[WS_METHODS.servicesStopTask](input)),
+      onStatus: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeServicesStatus]({}),
           listener,
           options,
         ),
