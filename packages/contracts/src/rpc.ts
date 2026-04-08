@@ -55,6 +55,8 @@ import {
 import {
   ServiceActionInput,
   ServiceError,
+  ServiceLogEntry,
+  ServiceLogInput,
   ServiceState,
   ServicesSnapshot,
   ServicesStatusEvent,
@@ -129,8 +131,11 @@ export const WS_METHODS = {
   servicesStartTask: "services.startTask",
   servicesStopTask: "services.stopTask",
 
+  servicesGetLogs: "services.getLogs",
+
   // Streaming subscriptions
   subscribeServicesStatus: "subscribeServicesStatus",
+  subscribeServiceLogs: "subscribeServiceLogs",
   subscribeGitStatus: "subscribeGitStatus",
   subscribeOrchestrationDomainEvents: "subscribeOrchestrationDomainEvents",
   subscribeTerminalEvents: "subscribeTerminalEvents",
@@ -390,9 +395,22 @@ export const WsServicesStopTaskRpc = Rpc.make(WS_METHODS.servicesStopTask, {
   error: ServiceError,
 });
 
+export const WsServicesGetLogsRpc = Rpc.make(WS_METHODS.servicesGetLogs, {
+  payload: ServiceLogInput,
+  success: Schema.Array(ServiceLogEntry),
+  error: ServiceError,
+});
+
 export const WsSubscribeServicesStatusRpc = Rpc.make(WS_METHODS.subscribeServicesStatus, {
   payload: Schema.Struct({}),
   success: ServicesStatusEvent,
+  error: ServiceError,
+  stream: true,
+});
+
+export const WsSubscribeServiceLogsRpc = Rpc.make(WS_METHODS.subscribeServiceLogs, {
+  payload: ServiceLogInput,
+  success: ServiceLogEntry,
   error: ServiceError,
   stream: true,
 });
@@ -439,5 +457,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServicesRestartRpc,
   WsServicesStartTaskRpc,
   WsServicesStopTaskRpc,
+  WsServicesGetLogsRpc,
   WsSubscribeServicesStatusRpc,
+  WsSubscribeServiceLogsRpc,
 );

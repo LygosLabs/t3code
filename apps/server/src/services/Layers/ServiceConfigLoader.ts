@@ -14,6 +14,7 @@ import { parse as parseYaml } from "yaml";
 export interface ServiceConfig {
   readonly version: number;
   readonly dockerComposePath: string;
+  readonly dockerProjectName: string;
   readonly envFile: string;
   readonly services: ReadonlyMap<string, ServiceDefConfig>;
   readonly tasks: ReadonlyMap<string, TaskDefConfig>;
@@ -176,6 +177,9 @@ export function loadServiceConfig(cwd: string): ServiceConfig | null {
   }
 
   const dockerComposePath = expandEnvVars(parsed.dockerComposePath ?? "");
+  const dockerProjectName = parsed.projectName
+    ? expandEnvVars(parsed.projectName as string)
+    : path.basename(path.dirname(dockerComposePath));
   const envFilePath = expandEnvVars(parsed.envFile ?? "");
   const env = parseDotenv(envFilePath);
 
@@ -222,6 +226,7 @@ export function loadServiceConfig(cwd: string): ServiceConfig | null {
   return {
     version: (parsed.version as number) ?? 1,
     dockerComposePath,
+    dockerProjectName,
     envFile: envFilePath,
     services,
     tasks,

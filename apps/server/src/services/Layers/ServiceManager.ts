@@ -10,6 +10,8 @@ import { type ChildProcess, exec, spawn } from "node:child_process";
 
 import {
   type ServiceActionInput,
+  type ServiceLogEntry,
+  type ServiceLogInput,
   type ServiceState,
   ServiceConfigError,
   ServiceDependencyError,
@@ -28,6 +30,13 @@ import { Effect, Layer, Queue, Stream, SynchronizedRef } from "effect";
 
 import { ServerConfig } from "../../config";
 import { runProcess } from "../../processRunner";
+import {
+  isProcessAlive,
+  killProcessGroup,
+  readPidFile,
+  removePidFile,
+  writePidFile,
+} from "../pidFile";
 import { ServiceManager, type ServiceManagerShape } from "../Services/ServiceManager";
 import {
   loadServiceConfig,
@@ -39,12 +48,17 @@ import {
 
 const HEALTH_POLL_INTERVAL_MS = 5_000;
 const PROCESS_KILL_GRACE_MS = 5_000;
+const LOG_BUFFER_MAX_LINES = 500;
 
 interface ServiceRuntime {
   status: ServiceStatus;
   startedAt?: number | undefined;
   error?: string | undefined;
   process?: ChildProcess | undefined;
+  /** PID of an adopted orphan process (no ChildProcess handle). */
+  adoptedPid?: number | undefined;
+  /** Docker log follower process (docker compose logs -f). */
+  logFollower?: ChildProcess | undefined;
 }
 
 interface TaskRuntime {
@@ -113,14 +127,11 @@ const checkProcessHealth = async (
   runtime: ServiceRuntime,
   def: ServiceDefConfig,
 ): Promise<ServiceStatus> => {
-  if (!runtime.process?.pid) return "stopped";
+  const pid = runtime.process?.pid ?? runtime.adoptedPid;
+  if (!pid) return "stopped";
 
   // Check if process is alive
-  try {
-    process.kill(runtime.process.pid, 0);
-  } catch {
-    return "stopped";
-  }
+  if (!isProcessAlive(pid)) return "stopped";
 
   // If HTTP health check is configured, try it
   if (def.healthCheck?.type === "http" && def.healthCheck.url) {
@@ -134,6 +145,17 @@ const checkProcessHealth = async (
 
   return "running";
 };
+
+function stopDockerLogFollower(runtime: ServiceRuntime): void {
+  if (runtime.logFollower?.pid) {
+    try {
+      runtime.logFollower.kill("SIGTERM");
+    } catch {
+      // Already dead
+    }
+    runtime.logFollower = undefined;
+  }
+}
 
 const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
   const serverConfig = yield* ServerConfig;
@@ -158,6 +180,81 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
     }
   };
 
+  // ── Log capture ──────────────────────────────────────────────────────
+
+  const logBuffers = new Map<string, ServiceLogEntry[]>();
+  const logListeners = new Map<string, Set<(entry: ServiceLogEntry) => void>>();
+
+  const appendLog = (serviceId: string, stream: "stdout" | "stderr", text: string) => {
+    const entry: ServiceLogEntry = {
+      serviceId,
+      stream,
+      text,
+      timestamp: new Date().toISOString(),
+    };
+
+    let buffer = logBuffers.get(serviceId);
+    if (!buffer) {
+      buffer = [];
+      logBuffers.set(serviceId, buffer);
+    }
+    buffer.push(entry);
+    if (buffer.length > LOG_BUFFER_MAX_LINES) {
+      buffer.splice(0, buffer.length - LOG_BUFFER_MAX_LINES);
+    }
+
+    const listeners = logListeners.get(serviceId);
+    if (listeners) {
+      for (const listener of listeners) {
+        listener(entry);
+      }
+    }
+  };
+
+  const attachLogListeners = (serviceId: string, child: ChildProcess) => {
+    child.stdout?.on("data", (chunk: Buffer) => {
+      appendLog(serviceId, "stdout", chunk.toString());
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      appendLog(serviceId, "stderr", chunk.toString());
+    });
+  };
+
+  const startDockerLogFollower = (serviceId: string): ChildProcess | undefined => {
+    const composePath = config?.dockerComposePath;
+    if (!composePath) return undefined;
+    const projectName = config?.dockerProjectName ?? "lygos";
+
+    const child = spawn(
+      "docker",
+      [
+        "compose",
+        "-f",
+        composePath,
+        "--project-name",
+        projectName,
+        "logs",
+        "-f",
+        "--tail=50",
+        serviceId,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...config?.env } },
+    );
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      appendLog(serviceId, "stdout", chunk.toString());
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      appendLog(serviceId, "stderr", chunk.toString());
+    });
+
+    child.on("error", () => {
+      // Log follower died — not critical
+    });
+
+    return child;
+  };
+
   // ── Config loading ────────────────────────────────────────────────────
 
   let config: ServiceConfig | null;
@@ -170,11 +267,27 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
   if (config) {
     yield* SynchronizedRef.update(stateRef, (s) => ({ ...s, config }));
 
-    // Initialize runtime entries for all services and tasks
+    // Initialize runtime entries, detecting already-running services
     const serviceRuntimes = new Map<string, ServiceRuntime>();
-    for (const id of config.services.keys()) {
+    for (const [id, def] of config.services) {
+      if (def.type === "process") {
+        // Check for orphaned process via PID file
+        const pid = readPidFile(serverConfig.cwd, id);
+        if (pid && isProcessAlive(pid)) {
+          serviceRuntimes.set(id, { status: "running", startedAt: Date.now(), adoptedPid: pid });
+          appendLog(
+            id,
+            "stdout",
+            `Attached to existing process (PID ${pid}). Restart to enable log streaming.`,
+          );
+          continue;
+        }
+        // Stale PID file — clean up
+        if (pid) removePidFile(serverConfig.cwd, id);
+      }
       serviceRuntimes.set(id, { status: "stopped" });
     }
+
     const taskRuntimes = new Map<string, TaskRuntime>();
     for (const id of config.tasks.keys()) {
       taskRuntimes.set(id, { status: "stopped" });
@@ -191,9 +304,10 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
   const dockerCompose = (args: string[]): Promise<{ stdout: string; stderr: string }> => {
     const composePath = config?.dockerComposePath;
     if (!composePath) throw new Error("No dockerComposePath configured");
+    const projectName = config?.dockerProjectName ?? "lygos";
     return runProcess(
       "docker",
-      ["compose", "-f", composePath, "--project-name", "lygos", ...args],
+      ["compose", "-f", composePath, "--project-name", projectName, ...args],
       {
         env: { ...process.env, ...config?.env },
         timeoutMs: 120_000,
@@ -204,31 +318,52 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
 
   // ── Health checking ───────────────────────────────────────────────────
 
-  const checkDockerHealth = async (serviceId: string): Promise<ServiceStatus> => {
+  const dockerContainerName = async (serviceId: string): Promise<string | null> => {
     try {
-      const result = await runProcess(
-        "docker",
-        ["inspect", "--format", "{{.State.Health.Status}}", `lygos-${serviceId}-1`],
-        { timeoutMs: 5_000, allowNonZeroExit: true },
-      );
-      const status = result.stdout.trim();
-      if (status === "healthy") return "healthy";
-      if (status === "unhealthy") return "unhealthy";
-      if (status === "starting") return "starting";
-      return "running";
+      const result = await dockerCompose(["ps", "--format", "{{.Name}}", serviceId]);
+      const name = result.stdout.trim();
+      return name || null;
     } catch {
-      // No health check defined — check if container is running
-      try {
-        const result = await runProcess(
-          "docker",
-          ["inspect", "--format", "{{.State.Running}}", `lygos-${serviceId}-1`],
-          { timeoutMs: 5_000, allowNonZeroExit: true },
-        );
-        return result.stdout.trim() === "true" ? "running" : "stopped";
-      } catch {
-        return "stopped";
-      }
+      // Fallback to default naming convention
+      const projectName = config?.dockerProjectName ?? "lygos";
+      return `${projectName}-${serviceId}-1`;
     }
+  };
+
+  const checkDockerHealth = async (serviceId: string): Promise<ServiceStatus> => {
+    const container = await dockerContainerName(serviceId);
+    if (!container) return "stopped";
+
+    // Single inspect call with JSON output for reliable parsing
+    let result: { stdout: string; code: number | null };
+    try {
+      result = await runProcess("docker", ["inspect", "--format", "{{json .State}}", container], {
+        timeoutMs: 5_000,
+        allowNonZeroExit: true,
+      });
+    } catch {
+      return "stopped"; // docker binary not found or spawn failure
+    }
+
+    // Non-zero exit = container doesn't exist
+    if (result.code !== 0) return "stopped";
+
+    let state: { Running?: boolean; Status?: string; Health?: { Status?: string } };
+    try {
+      state = JSON.parse(result.stdout.trim());
+    } catch {
+      return "stopped"; // Unparseable output
+    }
+
+    if (!state.Running) return "stopped";
+
+    // Container is running — check health if available
+    const health = state.Health?.Status;
+    if (health === "healthy") return "healthy";
+    if (health === "unhealthy") return "unhealthy";
+    if (health === "starting") return "starting";
+
+    return "running";
   };
 
   // ── Health polling loop ───────────────────────────────────────────────
@@ -253,8 +388,11 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
       if (newStatus !== runtime.status) {
         runtime.status = newStatus;
         if (newStatus === "stopped") {
+          stopDockerLogFollower(runtime);
           runtime.process = undefined;
+          runtime.adoptedPid = undefined;
           runtime.startedAt = undefined;
+          removePidFile(serverConfig.cwd, id);
         }
         changed = true;
       }
@@ -282,6 +420,22 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
     }
   };
 
+  const adoptProcess = (serviceId: string, pid: number): void => {
+    appendLog(
+      serviceId,
+      "stdout",
+      `Attached to existing process (PID ${pid}). Restart to enable log streaming.`,
+    );
+    Effect.runSyncWith(services)(
+      SynchronizedRef.update(stateRef, (s) => {
+        const svcs = new Map(s.services);
+        svcs.set(serviceId, { status: "running", startedAt: Date.now(), adoptedPid: pid });
+        return { ...s, services: svcs };
+      }),
+    );
+    broadcastStatus();
+  };
+
   const startServiceInternal = async (serviceId: string): Promise<void> => {
     if (!config) throw new Error("No config loaded");
     const def = config.services.get(serviceId);
@@ -298,16 +452,27 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
       return; // Already running
     }
 
+    // Check for an orphaned process from a previous session
+    if (def.type === "process") {
+      const existingPid = readPidFile(serverConfig.cwd, serviceId);
+      if (existingPid && isProcessAlive(existingPid)) {
+        adoptProcess(serviceId, existingPid);
+        return;
+      }
+      // Stale PID file — clean up
+      if (existingPid) removePidFile(serverConfig.cwd, serviceId);
+    }
+
     // Update status to starting
     Effect.runSyncWith(services)(
       SynchronizedRef.update(stateRef, (s) => {
-        const services = new Map(s.services);
-        services.set(serviceId, {
-          ...services.get(serviceId)!,
+        const svcs = new Map(s.services);
+        svcs.set(serviceId, {
+          ...svcs.get(serviceId)!,
           status: "starting",
           error: undefined,
         });
-        return { ...s, services };
+        return { ...s, services: svcs };
       }),
     );
     broadcastStatus();
@@ -317,54 +482,68 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
       if (result.stderr && result.stderr.includes("Error")) {
         Effect.runSync(
           SynchronizedRef.update(stateRef, (s) => {
-            const services = new Map(s.services);
-            services.set(serviceId, { status: "error", error: result.stderr });
-            return { ...s, services };
+            const svcs = new Map(s.services);
+            svcs.set(serviceId, { status: "error", error: result.stderr });
+            return { ...s, services: svcs };
           }),
         );
         broadcastStatus();
         throw new Error(result.stderr);
       }
 
+      const logFollower = startDockerLogFollower(serviceId);
       Effect.runSync(
         SynchronizedRef.update(stateRef, (s) => {
-          const services = new Map(s.services);
-          services.set(serviceId, { status: "running", startedAt: Date.now() });
-          return { ...s, services };
+          const svcs = new Map(s.services);
+          svcs.set(serviceId, { status: "running", startedAt: Date.now(), logFollower });
+          return { ...s, services: svcs };
         }),
       );
     } else {
-      // Local process
+      // Local process — spawn in its own process group
       const cwd = def.cwd;
       if (!cwd) throw new Error(`No cwd configured for process service: ${serviceId}`);
 
       const child = spawn(def.command ?? "echo 'no command'", {
         cwd,
         shell: true,
-        env: { ...process.env, ...config.env },
+        detached: true,
+        env: { ...process.env, PORT: undefined, ...config.env },
         stdio: ["ignore", "pipe", "pipe"],
       });
 
+      // Allow T3 Code to exit without waiting for this child
+      child.unref();
+
+      // Write PID file for recovery
+      if (child.pid) {
+        writePidFile(serverConfig.cwd, serviceId, child.pid);
+      }
+
+      attachLogListeners(serviceId, child);
+
       child.on("exit", (code) => {
+        removePidFile(serverConfig.cwd, serviceId);
         Effect.runSync(
           SynchronizedRef.update(stateRef, (s) => {
-            const services = new Map(s.services);
-            services.set(serviceId, {
+            const svcs = new Map(s.services);
+            svcs.set(serviceId, {
               status: code === 0 ? "stopped" : "error",
               error: code !== 0 ? `Process exited with code ${code}` : undefined,
             });
-            return { ...s, services };
+            return { ...s, services: svcs };
           }),
         );
         broadcastStatus();
       });
 
       child.on("error", (err) => {
+        removePidFile(serverConfig.cwd, serviceId);
         Effect.runSync(
           SynchronizedRef.update(stateRef, (s) => {
-            const services = new Map(s.services);
-            services.set(serviceId, { status: "error", error: err.message });
-            return { ...s, services };
+            const svcs = new Map(s.services);
+            svcs.set(serviceId, { status: "error", error: err.message });
+            return { ...s, services: svcs };
           }),
         );
         broadcastStatus();
@@ -372,9 +551,9 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
 
       Effect.runSync(
         SynchronizedRef.update(stateRef, (s) => {
-          const services = new Map(s.services);
-          services.set(serviceId, { status: "running", startedAt: Date.now(), process: child });
-          return { ...s, services };
+          const svcs = new Map(s.services);
+          svcs.set(serviceId, { status: "running", startedAt: Date.now(), process: child });
+          return { ...s, services: svcs };
         }),
       );
     }
@@ -393,41 +572,54 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
 
     Effect.runSyncWith(services)(
       SynchronizedRef.update(stateRef, (s) => {
-        const services = new Map(s.services);
-        services.set(serviceId, { ...services.get(serviceId)!, status: "stopping" });
-        return { ...s, services };
+        const svcs = new Map(s.services);
+        svcs.set(serviceId, { ...svcs.get(serviceId)!, status: "stopping" });
+        return { ...s, services: svcs };
       }),
     );
     broadcastStatus();
 
+    // Kill log follower if running
+    stopDockerLogFollower(runtime);
+
     if (def.type === "docker") {
       await dockerCompose(["stop", serviceId]);
-    } else if (runtime.process?.pid) {
-      // Graceful SIGTERM then SIGKILL
-      const child = runtime.process;
-      child.kill("SIGTERM");
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          try {
-            child.kill("SIGKILL");
-          } catch {
-            // Already dead
-          }
-          resolve();
-        }, PROCESS_KILL_GRACE_MS);
+    } else {
+      const pid = runtime.process?.pid ?? runtime.adoptedPid;
+      if (pid) {
+        // Kill the entire process group (SIGTERM, then SIGKILL after grace period)
+        killProcessGroup(pid, "SIGTERM");
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            killProcessGroup(pid, "SIGKILL");
+            resolve();
+          }, PROCESS_KILL_GRACE_MS);
 
-        child.on("exit", () => {
-          clearTimeout(timeout);
-          resolve();
+          if (runtime.process) {
+            runtime.process.on("exit", () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          } else {
+            // Adopted process — poll for death
+            const poll = setInterval(() => {
+              if (!isProcessAlive(pid)) {
+                clearInterval(poll);
+                clearTimeout(timeout);
+                resolve();
+              }
+            }, 200);
+          }
         });
-      });
+      }
+      removePidFile(serverConfig.cwd, serviceId);
     }
 
     Effect.runSyncWith(services)(
       SynchronizedRef.update(stateRef, (s) => {
-        const services = new Map(s.services);
-        services.set(serviceId, { status: "stopped" });
-        return { ...s, services };
+        const svcs = new Map(s.services);
+        svcs.set(serviceId, { status: "stopped" });
+        return { ...s, services: svcs };
       }),
     );
     broadcastStatus();
@@ -513,51 +705,71 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
         if (runtime.intervalHandle) clearInterval(runtime.intervalHandle);
       }
 
-      // Kill all managed processes
+      // Fire-and-forget SIGTERM to all process groups and log followers
+      // PID files are intentionally left for next startup recovery
       for (const [, runtime] of state.services) {
-        if (runtime.process?.pid) {
-          try {
-            runtime.process.kill("SIGTERM");
-          } catch {
-            // Already dead
-          }
+        stopDockerLogFollower(runtime);
+        const pid = runtime.process?.pid ?? runtime.adoptedPid;
+        if (pid) {
+          killProcessGroup(pid, "SIGTERM");
         }
       }
     }),
   );
 
-  // ── Auto-start ────────────────────────────────────────────────────────
+  // ── Startup detection & auto-start ──────────────────────────────────
 
   if (config) {
+    const dockerServices = [...config.services.entries()].filter(
+      ([, def]) => def.type === "docker",
+    );
     const autoStartServices = [...config.services.entries()]
       .filter(([, def]) => def.autoStart)
       .map(([id]) => id);
-
     const autoStartTasks = [...config.tasks.entries()]
       .filter(([, def]) => def.autoStart)
       .map(([id]) => id);
 
-    if (autoStartServices.length > 0 || autoStartTasks.length > 0) {
-      // Run auto-start in background (don't block layer construction)
-      runFork(
-        Effect.promise(async () => {
-          for (const id of autoStartServices) {
-            const deps = topologicalSort(id, config!.services);
-            for (const depId of deps) {
-              try {
-                await startServiceInternal(depId);
-                await waitForHealthy(depId);
-              } catch {
-                // Log but continue
-              }
+    // Run detection + auto-start in background (don't block layer construction)
+    runFork(
+      Effect.promise(async () => {
+        // Detect running Docker containers
+        for (const [id] of dockerServices) {
+          try {
+            const status = await checkDockerHealth(id);
+            if (status !== "stopped") {
+              const logFollower = startDockerLogFollower(id);
+              Effect.runSyncWith(services)(
+                SynchronizedRef.update(stateRef, (s) => {
+                  const svcs = new Map(s.services);
+                  svcs.set(id, { status, startedAt: Date.now(), logFollower });
+                  return { ...s, services: svcs };
+                }),
+              );
+            }
+          } catch {
+            // Docker not available or container doesn't exist
+          }
+        }
+        broadcastStatus();
+
+        // Auto-start services
+        for (const id of autoStartServices) {
+          const deps = topologicalSort(id, config!.services);
+          for (const depId of deps) {
+            try {
+              await startServiceInternal(depId);
+              await waitForHealthy(depId);
+            } catch {
+              // Log but continue
             }
           }
-          for (const id of autoStartTasks) {
-            startTaskInternal(id);
-          }
-        }),
-      );
-    }
+        }
+        for (const id of autoStartTasks) {
+          startTaskInternal(id);
+        }
+      }),
+    );
   }
 
   // ── Service shape implementation ──────────────────────────────────────
@@ -709,6 +921,47 @@ const makeServiceManager = Effect.fn("makeServiceManager")(function* () {
         const runtime = state.tasks.get(input.taskId) ?? { status: "stopped" as const };
         return makeTaskState(input.taskId, def, runtime);
       }),
+
+    getLogs: (input: ServiceLogInput) =>
+      Effect.gen(function* () {
+        if (!config)
+          return yield* new ServiceConfigError({ reason: "No lygos-services.yaml found" });
+        if (!config.services.has(input.serviceId))
+          return yield* new ServiceNotFoundError({ serviceId: input.serviceId });
+        return logBuffers.get(input.serviceId) ?? [];
+      }),
+
+    streamLogs: (input: ServiceLogInput) =>
+      Stream.callback<ServiceLogEntry>((queue) =>
+        Effect.acquireRelease(
+          Effect.sync(() => {
+            // Replay buffered logs
+            const buffer = logBuffers.get(input.serviceId) ?? [];
+            for (const entry of buffer) {
+              Effect.runSyncWith(services)(Queue.offer(queue, entry));
+            }
+
+            // Subscribe to live logs
+            const listener = (entry: ServiceLogEntry) => {
+              Effect.runSyncWith(services)(Queue.offer(queue, entry));
+            };
+            let listeners = logListeners.get(input.serviceId);
+            if (!listeners) {
+              listeners = new Set();
+              logListeners.set(input.serviceId, listeners);
+            }
+            listeners.add(listener);
+            return listener;
+          }),
+          (listener) =>
+            Effect.sync(() => {
+              const listeners = logListeners.get(input.serviceId);
+              if (listeners) {
+                listeners.delete(listener);
+              }
+            }),
+        ),
+      ),
 
     streamStatus: Stream.callback<ServicesStatusEvent>((queue) =>
       Effect.acquireRelease(

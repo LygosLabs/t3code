@@ -9,6 +9,8 @@
 import {
   type ServiceActionInput,
   type ServiceError,
+  type ServiceLogEntry,
+  type ServiceLogInput,
   type ServiceState,
   type ServicesSnapshot,
   type ServicesStatusEvent,
@@ -29,6 +31,12 @@ export interface ServiceManagerShape {
   readonly startTask: (input: TaskActionInput) => Effect.Effect<TaskState, ServiceError>;
 
   readonly stopTask: (input: TaskActionInput) => Effect.Effect<TaskState, ServiceError>;
+
+  readonly getLogs: (
+    input: ServiceLogInput,
+  ) => Effect.Effect<ReadonlyArray<ServiceLogEntry>, ServiceError>;
+
+  readonly streamLogs: (input: ServiceLogInput) => Stream.Stream<ServiceLogEntry, ServiceError>;
 
   readonly streamStatus: Stream.Stream<ServicesStatusEvent, ServiceError>;
 }

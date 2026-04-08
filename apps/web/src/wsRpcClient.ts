@@ -6,6 +6,7 @@ import {
   type GitStatusStreamEvent,
   type NativeApi,
   ORCHESTRATION_WS_METHODS,
+  type ServiceLogEntry,
   type ServerSettingsPatch,
   WS_METHODS,
 } from "@t3tools/contracts";
@@ -106,7 +107,13 @@ export interface WsRpcClient {
     readonly restart: RpcUnaryMethod<typeof WS_METHODS.servicesRestart>;
     readonly startTask: RpcUnaryMethod<typeof WS_METHODS.servicesStartTask>;
     readonly stopTask: RpcUnaryMethod<typeof WS_METHODS.servicesStopTask>;
+    readonly getLogs: RpcUnaryMethod<typeof WS_METHODS.servicesGetLogs>;
     readonly onStatus: RpcStreamMethod<typeof WS_METHODS.subscribeServicesStatus>;
+    readonly onLogs: (
+      serviceId: string,
+      listener: (entry: ServiceLogEntry) => void,
+      options?: StreamSubscriptionOptions,
+    ) => () => void;
   };
   readonly orchestration: {
     readonly getSnapshot: RpcUnaryNoArgMethod<typeof ORCHESTRATION_WS_METHODS.getSnapshot>;
@@ -244,9 +251,16 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
         transport.request((client) => client[WS_METHODS.servicesStartTask](input)),
       stopTask: (input) =>
         transport.request((client) => client[WS_METHODS.servicesStopTask](input)),
+      getLogs: (input) => transport.request((client) => client[WS_METHODS.servicesGetLogs](input)),
       onStatus: (listener, options) =>
         transport.subscribe(
           (client) => client[WS_METHODS.subscribeServicesStatus]({}),
+          listener,
+          options,
+        ),
+      onLogs: (serviceId, listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeServiceLogs]({ serviceId }),
           listener,
           options,
         ),

@@ -761,8 +761,16 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         observeRpcEffect(WS_METHODS.servicesStopTask, serviceManager.stopTask(input), {
           "rpc.aggregate": "services",
         }),
+      [WS_METHODS.servicesGetLogs]: (input) =>
+        observeRpcEffect(WS_METHODS.servicesGetLogs, serviceManager.getLogs(input), {
+          "rpc.aggregate": "services",
+        }),
       [WS_METHODS.subscribeServicesStatus]: (_input) =>
         observeRpcStream(WS_METHODS.subscribeServicesStatus, serviceManager.streamStatus, {
+          "rpc.aggregate": "services",
+        }),
+      [WS_METHODS.subscribeServiceLogs]: (input) =>
+        observeRpcStream(WS_METHODS.subscribeServiceLogs, serviceManager.streamLogs(input), {
           "rpc.aggregate": "services",
         }),
 

@@ -100,6 +100,21 @@ export type ServicesSnapshot = typeof ServicesSnapshot.Type;
 export const ServicesStatusEvent = ServicesSnapshot;
 export type ServicesStatusEvent = typeof ServicesStatusEvent.Type;
 
+// ── Log events ──────────────────────────────────────────────────────────
+
+export const ServiceLogEntry = Schema.Struct({
+  serviceId: Schema.String,
+  stream: Schema.Literals(["stdout", "stderr"]),
+  text: Schema.String,
+  timestamp: Schema.String,
+});
+export type ServiceLogEntry = typeof ServiceLogEntry.Type;
+
+export const ServiceLogInput = Schema.Struct({
+  serviceId: ServiceId,
+});
+export type ServiceLogInput = typeof ServiceLogInput.Type;
+
 // ── RPC inputs ─────────────────────────────────────────────────────────
 
 export const ServiceActionInput = Schema.Struct({
