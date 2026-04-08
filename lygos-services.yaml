@@ -3,6 +3,8 @@ dockerComposePath: "$LYGOS_PATH/lygos-dev/docker-compose.yml"
 envFile: "$LYGOS_PATH/lygos-dev/.env"
 
 services:
+  # ── Docker services ──────────────────────────────────────────────────
+
   bitcoin:
     type: docker
     autoStart: false
@@ -44,37 +46,51 @@ services:
     ports: [8545]
     healthCheck: { type: docker }
 
+  # ── Process services ─────────────────────────────────────────────────
+
   dlcd-rs:
     type: process
     autoStart: false
-    cwd: "$LYGOS_PATH/dlc-dev-kit/dlcd"
-    command: "cargo run"
-    ports: [8575, 28575]
+    cwd: "$LYGOS_PATH/dlcd-rs"
+    command: "cargo run --bin dlcd"
     depends: [bitcoin, electrs, postgres]
-    healthCheck: { type: http, url: "http://localhost:8575/health" }
 
-  orange-grove-backend:
+  orange-grove:
     type: process
     autoStart: false
-    cwd: "$LYGOS_PATH/orange-grove/core"
-    command: "pnpm start:dev"
-    ports: [3001]
+    cwd: "$LYGOS_PATH/orange-grove-active"
+    command: "pnpm sync && cd core && pnpm migrate:latest && pnpm start:dev"
     depends: [postgres]
-    healthCheck: { type: http, url: "http://localhost:3001/health" }
 
   admin-ui:
     type: process
     autoStart: false
-    cwd: "$LYGOS_PATH/orange-grove/admin-ui"
-    command: "pnpm dev"
-    ports: [3002]
+    cwd: "$LYGOS_PATH/orange-grove-active"
+    command: "pnpm sync && cd admin-ui && pnpm dev"
+
+  sign-ui:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/orange-grove-active"
+    command: "cd sign-ui && pnpm dev"
+
+  app:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/lygos-app"
+    command: "yarn start"
 
   mocknolia:
     type: process
     autoStart: false
     cwd: "$LYGOS_PATH/mocknolia"
     command: "yarn dev"
-    ports: [9002]
+
+  mock-server:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/mock-server"
+    command: "pnpm dev"
 
 tasks:
   block-generator:
