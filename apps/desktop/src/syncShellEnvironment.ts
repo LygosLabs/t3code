@@ -21,6 +21,7 @@ export function syncShellEnvironment(
     const shellEnvironment = (options.readEnvironment ?? readEnvironmentFromLoginShell)(shell, [
       "PATH",
       "SSH_AUTH_SOCK",
+      "LYGOS_PATH",
     ]);
 
     if (shellEnvironment.PATH) {
@@ -29,6 +30,10 @@ export function syncShellEnvironment(
 
     if (!env.SSH_AUTH_SOCK && shellEnvironment.SSH_AUTH_SOCK) {
       env.SSH_AUTH_SOCK = shellEnvironment.SSH_AUTH_SOCK;
+    }
+
+    if (shellEnvironment.LYGOS_PATH) {
+      env.LYGOS_PATH = shellEnvironment.LYGOS_PATH;
     }
   } catch {
     // Keep inherited environment if shell lookup fails.
