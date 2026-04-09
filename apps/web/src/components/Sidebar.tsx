@@ -8,7 +8,6 @@ import {
   PlusIcon,
   ServerIcon,
   SettingsIcon,
-  TicketIcon,
   SquarePenIcon,
   TerminalIcon,
   TriangleAlertIcon,
@@ -2178,7 +2177,17 @@ export default function Sidebar() {
                   className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
                   onClick={() => void navigate({ to: "/linear" })}
                 >
-                  <TicketIcon className="size-3.5" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 100 100"
+                    className="size-3.5"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M1.225 61.523c-.222-.949.908-1.546 1.597-.857L39.334 97.178c.689.689.092 1.819-.857 1.596C20.052 94.452 5.548 79.949 1.225 61.523ZM.002 46.889a1.075 1.075 0 0 1 .29.761L52.35 99.709c.2.2.477.307.76.289 2.37-.147 4.694-.46 6.963-.926.764-.157 1.03-1.096.478-1.648L2.576 39.449c-.552-.552-1.491-.287-1.648.478A50.08 50.08 0 0 0 .002 46.89ZM4.211 29.705a1.074 1.074 0 0 1 .208 1.1l64.776 64.776c.29.29.726.374 1.1.208a49.648 49.648 0 0 0 5.186-2.684c.552-.328.637-1.087.183-1.541L8.436 24.337c-.454-.454-1.213-.369-1.541.183a49.662 49.662 0 0 0-2.684 5.185ZM12.659 18.074c-.37-.37-.393-.964-.044-1.354C21.78 6.46 35.111 0 49.952 0 77.593 0 100 22.407 100 50.048c0 14.84-6.46 28.172-16.72 37.338-.39.348-.984.326-1.354-.045L12.659 18.074Z"
+                    />
+                  </svg>
                   <span className="text-xs">Linear</span>
                   <LinearSidebarStatus />
                 </SidebarMenuButton>
