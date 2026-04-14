@@ -18,7 +18,11 @@ describe("syncShellEnvironment", () => {
       readEnvironment,
     });
 
-    expect(readEnvironment).toHaveBeenCalledWith("/bin/zsh", ["PATH", "SSH_AUTH_SOCK"]);
+    expect(readEnvironment).toHaveBeenCalledWith("/bin/zsh", [
+      "PATH",
+      "SSH_AUTH_SOCK",
+      "LYGOS_PATH",
+    ]);
     expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
     expect(env.SSH_AUTH_SOCK).toBe("/tmp/secretive.sock");
   });
@@ -77,7 +81,11 @@ describe("syncShellEnvironment", () => {
       readEnvironment,
     });
 
-    expect(readEnvironment).toHaveBeenCalledWith("/bin/zsh", ["PATH", "SSH_AUTH_SOCK"]);
+    expect(readEnvironment).toHaveBeenCalledWith("/bin/zsh", [
+      "PATH",
+      "SSH_AUTH_SOCK",
+      "LYGOS_PATH",
+    ]);
     expect(env.PATH).toBe("/home/linuxbrew/.linuxbrew/bin:/usr/bin");
     expect(env.SSH_AUTH_SOCK).toBe("/tmp/secretive.sock");
   });
