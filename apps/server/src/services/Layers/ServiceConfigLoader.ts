@@ -159,13 +159,30 @@ export function topologicalSort(
 }
 
 /**
+ * Resolve the path to lygos-services.yaml.
+ * Checks the given cwd first, then falls back to a bundled copy
+ * shipped alongside the server dist (for packaged desktop builds).
+ */
+function resolveConfigPath(cwd: string): string | null {
+  const cwdPath = path.join(cwd, "lygos-services.yaml");
+  if (fs.existsSync(cwdPath)) return cwdPath;
+
+  // Fallback: bundled config in the server dist directory
+  const bundledPath = path.join(import.meta.dirname, "lygos-services.yaml");
+  if (fs.existsSync(bundledPath)) return bundledPath;
+
+  return null;
+}
+
+/**
  * Load and parse the services YAML config from the given cwd.
- * Returns null if the config file doesn't exist (graceful degradation).
+ * Falls back to a bundled copy if not found at cwd.
+ * Returns null if no config file exists anywhere (graceful degradation).
  */
 export function loadServiceConfig(cwd: string): ServiceConfig | null {
-  const configPath = path.join(cwd, "lygos-services.yaml");
+  const configPath = resolveConfigPath(cwd);
 
-  if (!fs.existsSync(configPath)) {
+  if (!configPath) {
     return null;
   }
 

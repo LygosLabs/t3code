@@ -25,10 +25,12 @@ export interface ServicesStoreState {
   tasks: Record<string, TaskState>;
   configLoaded: boolean;
   logs: Record<string, KeyedLogEntry[]>;
+  selectedServiceId: string | null;
 
   applySnapshot: (snapshot: ServicesSnapshot) => void;
   appendLog: (entry: ServiceLogEntry) => void;
   clearLogs: (serviceId: string) => void;
+  selectService: (serviceId: string) => void;
 }
 
 export const useServicesStore = create<ServicesStoreState>()((set) => ({
@@ -36,6 +38,7 @@ export const useServicesStore = create<ServicesStoreState>()((set) => ({
   tasks: {},
   configLoaded: false,
   logs: {},
+  selectedServiceId: null,
 
   applySnapshot: (snapshot) => {
     const services: Record<string, ServiceState> = {};
@@ -63,5 +66,9 @@ export const useServicesStore = create<ServicesStoreState>()((set) => ({
 
   clearLogs: (serviceId) => {
     set((state) => ({ logs: { ...state.logs, [serviceId]: [] } }));
+  },
+
+  selectService: (serviceId) => {
+    set({ selectedServiceId: serviceId });
   },
 }));

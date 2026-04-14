@@ -406,15 +406,18 @@ export function LinearPanel() {
   const projectList = useMemo(() => Object.values(projects), [projects]);
   const issueList = useMemo(() => Object.values(issues), [issues]);
 
-  const { active, waiting } = useMemo(() => {
-    const activeIssues: LinearIssue[] = [];
-    const waitingIssues: LinearIssue[] = [];
+  const { worktreeActive, inProgress, waiting } = useMemo(() => {
+    const active: LinearIssue[] = [];
+    const started: LinearIssue[] = [];
+    const rest: LinearIssue[] = [];
 
     for (const issue of issueList) {
-      if (issue.state.type === "started") {
-        activeIssues.push(issue);
+      if (validLinkedThreads[issue.id]) {
+        active.push(issue);
+      } else if (issue.state.type === "started") {
+        started.push(issue);
       } else {
-        waitingIssues.push(issue);
+        rest.push(issue);
       }
     }
 
@@ -443,8 +446,12 @@ export function LinearPanel() {
       return { cycleIssues: cycle, groupedIssues: byProject, unprojectdIssues: noProject };
     }
 
-    return { active: groupIssues(activeIssues), waiting: groupIssues(waitingIssues) };
-  }, [issueList]);
+    return {
+      worktreeActive: active,
+      inProgress: groupIssues(started),
+      waiting: groupIssues(rest),
+    };
+  }, [issueList, validLinkedThreads]);
 
   if (!connected) {
     return (
@@ -514,10 +521,32 @@ export function LinearPanel() {
         </Button>
       </div>
 
-      {/* Active (In Progress) */}
+      {/* Active — issues linked to a worktree/thread */}
+      {worktreeActive.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-1">
+            Active{" "}
+            <span className="text-muted-foreground/50 font-normal">({worktreeActive.length})</span>
+          </h3>
+          {worktreeActive.map((issue) => (
+            <IssueCard
+              key={issue.id}
+              issue={issue}
+              projects={projectList}
+              showProjectAssign={false}
+              lygosProjects={lygosProjects}
+              linkedThread={validLinkedThreads[issue.id]}
+              onStartThread={handleStartThread}
+              onNavigateThread={handleNavigateThread}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* In Progress (Linear state "started", no worktree yet) */}
       <IssueSection
-        label="Active"
-        groups={active}
+        label="In Progress"
+        groups={inProgress}
         projects={projects}
         projectList={projectList}
         lygosProjects={lygosProjects}

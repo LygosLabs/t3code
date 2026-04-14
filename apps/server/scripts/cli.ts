@@ -150,6 +150,14 @@ const buildCmd = Command.make(
       } else {
         yield* Effect.logWarning("[cli] Web dist not found — skipping client bundle.");
       }
+
+      // Bundle lygos-services.yaml into dist/
+      const servicesYaml = path.join(repoRoot, "lygos-services.yaml");
+      const servicesYamlTarget = path.join(serverDir, "dist/lygos-services.yaml");
+      if (yield* fs.exists(servicesYaml)) {
+        yield* fs.copyFile(servicesYaml, servicesYamlTarget);
+        yield* Effect.log("[cli] Bundled lygos-services.yaml into dist/");
+      }
     }),
 ).pipe(Command.withDescription("Build the server package (tsdown + bundle web client)."));
 
