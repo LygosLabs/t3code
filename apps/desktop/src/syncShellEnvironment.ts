@@ -24,6 +24,7 @@ const LOGIN_SHELL_ENV_NAMES = [
   "HOMEBREW_REPOSITORY",
   "XDG_CONFIG_HOME",
   "XDG_DATA_HOME",
+  "LYGOS_PATH",
 ] as const;
 
 function logShellEnvironmentWarning(message: string, error?: unknown): void {
@@ -98,6 +99,7 @@ export function syncShellEnvironment(
       "HOMEBREW_REPOSITORY",
       "XDG_CONFIG_HOME",
       "XDG_DATA_HOME",
+      "LYGOS_PATH",
     ] as const) {
       if (!env[name] && shellEnvironment[name]) {
         env[name] = shellEnvironment[name];

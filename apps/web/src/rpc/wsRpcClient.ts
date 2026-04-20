@@ -6,12 +6,14 @@ import {
   type GitStatusStreamEvent,
   type LocalApi,
   ORCHESTRATION_WS_METHODS,
+  type ServiceLogEntry,
   type ServerSettingsPatch,
   WS_METHODS,
 } from "@t3tools/contracts";
 import { applyGitStatusStreamEvent } from "@t3tools/shared/git";
 import { Effect, Stream } from "effect";
 
+import { getPrimaryEnvironmentConnection } from "../environments/runtime/service";
 import { type WsRpcProtocolClient } from "./protocol";
 import { resetWsReconnectBackoff } from "./wsConnectionState";
 import { WsTransport } from "./wsTransport";
@@ -111,6 +113,32 @@ export interface WsRpcClient {
     readonly subscribeConfig: RpcStreamMethod<typeof WS_METHODS.subscribeServerConfig>;
     readonly subscribeLifecycle: RpcStreamMethod<typeof WS_METHODS.subscribeServerLifecycle>;
     readonly subscribeAuthAccess: RpcStreamMethod<typeof WS_METHODS.subscribeAuthAccess>;
+  };
+  readonly setup: {
+    readonly list: RpcUnaryNoArgMethod<typeof WS_METHODS.setupList>;
+    readonly check: RpcUnaryMethod<typeof WS_METHODS.setupCheck>;
+    readonly onStatus: RpcStreamMethod<typeof WS_METHODS.subscribeSetupStatus>;
+  };
+  readonly linear: {
+    readonly list: RpcUnaryNoArgMethod<typeof WS_METHODS.linearList>;
+    readonly refresh: RpcUnaryNoArgMethod<typeof WS_METHODS.linearRefresh>;
+    readonly assignLabel: RpcUnaryMethod<typeof WS_METHODS.linearAssignLabel>;
+    readonly onStatus: RpcStreamMethod<typeof WS_METHODS.subscribeLinearStatus>;
+  };
+  readonly services: {
+    readonly list: RpcUnaryNoArgMethod<typeof WS_METHODS.servicesList>;
+    readonly start: RpcUnaryMethod<typeof WS_METHODS.servicesStart>;
+    readonly stop: RpcUnaryMethod<typeof WS_METHODS.servicesStop>;
+    readonly restart: RpcUnaryMethod<typeof WS_METHODS.servicesRestart>;
+    readonly startTask: RpcUnaryMethod<typeof WS_METHODS.servicesStartTask>;
+    readonly stopTask: RpcUnaryMethod<typeof WS_METHODS.servicesStopTask>;
+    readonly getLogs: RpcUnaryMethod<typeof WS_METHODS.servicesGetLogs>;
+    readonly onStatus: RpcStreamMethod<typeof WS_METHODS.subscribeServicesStatus>;
+    readonly onLogs: (
+      serviceId: string,
+      listener: (entry: ServiceLogEntry) => void,
+      options?: StreamSubscriptionOptions,
+    ) => () => void;
   };
   readonly orchestration: {
     readonly dispatchCommand: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.dispatchCommand>;
@@ -232,6 +260,51 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
           options,
         ),
     },
+    setup: {
+      list: () => transport.request((client) => client[WS_METHODS.setupList]({})),
+      check: (input) => transport.request((client) => client[WS_METHODS.setupCheck](input)),
+      onStatus: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeSetupStatus]({}),
+          listener,
+          options,
+        ),
+    },
+    linear: {
+      list: () => transport.request((client) => client[WS_METHODS.linearList]({})),
+      refresh: () => transport.request((client) => client[WS_METHODS.linearRefresh]({})),
+      assignLabel: (input) =>
+        transport.request((client) => client[WS_METHODS.linearAssignLabel](input)),
+      onStatus: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeLinearStatus]({}),
+          listener,
+          options,
+        ),
+    },
+    services: {
+      list: () => transport.request((client) => client[WS_METHODS.servicesList]({})),
+      start: (input) => transport.request((client) => client[WS_METHODS.servicesStart](input)),
+      stop: (input) => transport.request((client) => client[WS_METHODS.servicesStop](input)),
+      restart: (input) => transport.request((client) => client[WS_METHODS.servicesRestart](input)),
+      startTask: (input) =>
+        transport.request((client) => client[WS_METHODS.servicesStartTask](input)),
+      stopTask: (input) =>
+        transport.request((client) => client[WS_METHODS.servicesStopTask](input)),
+      getLogs: (input) => transport.request((client) => client[WS_METHODS.servicesGetLogs](input)),
+      onStatus: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeServicesStatus]({}),
+          listener,
+          options,
+        ),
+      onLogs: (serviceId, listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeServiceLogs]({ serviceId }),
+          listener,
+          options,
+        ),
+    },
     orchestration: {
       dispatchCommand: (input) =>
         transport.request((client) => client[ORCHESTRATION_WS_METHODS.dispatchCommand](input)),
@@ -253,4 +326,12 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
         ),
     },
   };
+}
+
+// Fork-local compatibility shim: the Services, Linear, and Setup panels were
+// written against a global WsRpcClient. Upstream moved to per-environment
+// clients. Until those panels are reworked around environments, resolve the
+// primary environment connection's client on demand.
+export function getWsRpcClient(): WsRpcClient {
+  return getPrimaryEnvironmentConnection().client;
 }

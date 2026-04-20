@@ -1,0 +1,100 @@
+version: 1
+dockerComposePath: "$LYGOS_PATH/lygos-dev/docker-compose.yml"
+envFile: "$LYGOS_PATH/lygos-dev/.env"
+
+services:
+  # ── Docker services ──────────────────────────────────────────────────
+
+  bitcoin:
+    type: docker
+    autoStart: false
+    ports: [18443]
+    healthCheck: { type: docker }
+
+  electrs:
+    type: docker
+    autoStart: false
+    ports: [50000, 30000]
+    depends: [bitcoin]
+    healthCheck: { type: docker }
+
+  esplora:
+    type: docker
+    autoStart: false
+    ports: [5002]
+    depends: [electrs]
+
+  postgres:
+    type: docker
+    autoStart: false
+    ports: [5432]
+    healthCheck: { type: docker }
+
+  mongo:
+    type: docker
+    autoStart: false
+    ports: [27017]
+
+  electrs-batch-server:
+    type: docker
+    autoStart: false
+    ports: [5001]
+
+  anvil:
+    type: docker
+    autoStart: false
+    ports: [8545]
+    healthCheck: { type: docker }
+
+  # ── Process services ─────────────────────────────────────────────────
+
+  dlcd-rs:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/dlcd-rs"
+    command: "cargo run --bin dlcd"
+    depends: [bitcoin, electrs, postgres]
+
+  orange-grove:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/orange-grove-active"
+    command: "pnpm sync && cd core && pnpm migrate:latest && pnpm start:dev"
+    depends: [postgres]
+
+  admin-ui:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/orange-grove-active"
+    command: "pnpm sync && cd admin-ui && pnpm dev"
+
+  sign-ui:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/orange-grove-active"
+    command: "cd sign-ui && pnpm dev"
+
+  app:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/lygos-app"
+    command: "yarn start"
+
+  mocknolia:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/mocknolia"
+    command: "yarn dev"
+
+  mock-server:
+    type: process
+    autoStart: false
+    cwd: "$LYGOS_PATH/mock-server"
+    command: "pnpm dev"
+
+tasks:
+  block-generator:
+    command: "docker exec lygos-dev-bitcoin-1 bitcoin-cli -regtest -rpcuser=admin1 -rpcpassword=123 generatetoaddress 6 bcrt1qxwt28fujrxa69qu22ctzd3fmgsknl2sus4j97d"
+    intervalSeconds: 30
+    depends: [bitcoin]
+    autoStart: false

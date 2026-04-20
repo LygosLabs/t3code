@@ -32,6 +32,9 @@ import { GitCoreLive } from "./git/Layers/GitCore.ts";
 import { GitHubCliLive } from "./git/Layers/GitHubCli.ts";
 import { GitStatusBroadcasterLive } from "./git/Layers/GitStatusBroadcaster.ts";
 import { RoutingTextGenerationLive } from "./git/Layers/RoutingTextGeneration.ts";
+import { LinearManagerLive } from "./linear/Layers/LinearManager.ts";
+import { SetupManagerLive } from "./setup/Layers/SetupManager.ts";
+import { ServiceManagerLive } from "./services/Layers/ServiceManager.ts";
 import { TerminalManagerLive } from "./terminal/Layers/Manager.ts";
 import { GitManagerLive } from "./git/Layers/GitManager.ts";
 import { KeybindingsLive } from "./keybindings.ts";
@@ -230,6 +233,9 @@ const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(GitLayerLive),
   Layer.provideMerge(ProviderRuntimeLayerLive),
   Layer.provideMerge(TerminalLayerLive),
+  Layer.provideMerge(ServiceManagerLive),
+  Layer.provideMerge(SetupManagerLive),
+  Layer.provideMerge(LinearManagerLive),
   Layer.provideMerge(PersistenceLayerLive),
   Layer.provideMerge(KeybindingsLive),
   Layer.provideMerge(ProviderRegistryLive),
