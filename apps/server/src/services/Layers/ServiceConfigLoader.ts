@@ -160,14 +160,23 @@ export function topologicalSort(
 
 /**
  * Resolve the path to lygos-services.yaml.
- * Checks the given cwd first, then falls back to a bundled copy
- * shipped alongside the server dist (for packaged desktop builds).
+ *
+ * Resolution order:
+ *   1. $LYGOS_PATH/lygos-dev/lygos-services.yaml — canonical source, owned by
+ *      the lygos-dev repo alongside docker-compose.yml and mprocs.yaml.
+ *   2. <cwd>/lygos-services.yaml — local override for development.
+ *   3. Bundled copy next to the server dist (packaged desktop builds).
  */
 function resolveConfigPath(cwd: string): string | null {
+  const lygosPath = process.env.LYGOS_PATH;
+  if (lygosPath) {
+    const lygosDevPath = path.join(lygosPath, "lygos-dev", "lygos-services.yaml");
+    if (fs.existsSync(lygosDevPath)) return lygosDevPath;
+  }
+
   const cwdPath = path.join(cwd, "lygos-services.yaml");
   if (fs.existsSync(cwdPath)) return cwdPath;
 
-  // Fallback: bundled config in the server dist directory
   const bundledPath = path.join(import.meta.dirname, "lygos-services.yaml");
   if (fs.existsSync(bundledPath)) return bundledPath;
 
