@@ -1,22 +1,22 @@
 export const BRAND_ASSET_PATHS = {
-  productionMacIconPng: "assets/prod/black-macos-1024.png",
-  productionLinuxIconPng: "assets/prod/black-universal-1024.png",
-  productionWindowsIconIco: "assets/prod/t3-black-windows.ico",
-  productionWebFaviconIco: "assets/prod/t3-black-web-favicon.ico",
-  productionWebFavicon16Png: "assets/prod/t3-black-web-favicon-16x16.png",
-  productionWebFavicon32Png: "assets/prod/t3-black-web-favicon-32x32.png",
-  productionWebAppleTouchIconPng: "assets/prod/t3-black-web-apple-touch-180.png",
+  productionMacIconPng: "assets/lygos-brand/icon-1024.png",
+  productionLinuxIconPng: "assets/lygos-brand/icon-1024.png",
+  productionWindowsIconIco: "assets/lygos-brand/icon-48.png",
+  productionWebFaviconIco: "assets/lygos-brand/icon-48.png",
+  productionWebFavicon16Png: "assets/lygos-brand/icon-16.png",
+  productionWebFavicon32Png: "assets/lygos-brand/icon-32.png",
+  productionWebAppleTouchIconPng: "assets/lygos-brand/icon-180.png",
 
-  nightlyMacIconPng: "assets/nightly/blueprint-macos-1024.png",
-  nightlyLinuxIconPng: "assets/nightly/blueprint-universal-1024.png",
-  nightlyWindowsIconIco: "assets/nightly/blueprint-windows.ico",
+  nightlyMacIconPng: "assets/lygos-brand/icon-1024.png",
+  nightlyLinuxIconPng: "assets/lygos-brand/icon-1024.png",
+  nightlyWindowsIconIco: "assets/lygos-brand/icon-48.png",
 
-  developmentDesktopIconPng: "assets/dev/blueprint-macos-1024.png",
-  developmentWindowsIconIco: "assets/dev/blueprint-windows.ico",
-  developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",
-  developmentWebFavicon16Png: "assets/dev/blueprint-web-favicon-16x16.png",
-  developmentWebFavicon32Png: "assets/dev/blueprint-web-favicon-32x32.png",
-  developmentWebAppleTouchIconPng: "assets/dev/blueprint-web-apple-touch-180.png",
+  developmentDesktopIconPng: "assets/lygos-brand/icon-1024.png",
+  developmentWindowsIconIco: "assets/lygos-brand/icon-48.png",
+  developmentWebFaviconIco: "assets/lygos-brand/icon-48.png",
+  developmentWebFavicon16Png: "assets/lygos-brand/icon-16.png",
+  developmentWebFavicon32Png: "assets/lygos-brand/icon-32.png",
+  developmentWebAppleTouchIconPng: "assets/lygos-brand/icon-180.png",
 } as const;
 
 export type WebAssetBrand = "development" | "production";

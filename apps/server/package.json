@@ -4,7 +4,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pingdotgg/t3code",
+    "url": "https://github.com/bennyhodl/t3code",
     "directory": "apps/server"
   },
   "bin": {
@@ -32,7 +32,8 @@
     "@pierre/diffs": "catalog:",
     "effect": "catalog:",
     "node-pty": "^1.1.0",
-    "open": "^10.1.0"
+    "open": "^10.1.0",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@effect/language-service": "catalog:",

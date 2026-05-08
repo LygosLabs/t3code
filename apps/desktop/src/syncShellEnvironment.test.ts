@@ -27,6 +27,7 @@ describe("syncShellEnvironment", () => {
       "HOMEBREW_REPOSITORY",
       "XDG_CONFIG_HOME",
       "XDG_DATA_HOME",
+      "LYGOS_PATH",
     ]);
     expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin:/Users/test/.local/bin");
     expect(env.SSH_AUTH_SOCK).toBe("/tmp/secretive.sock");
@@ -95,6 +96,7 @@ describe("syncShellEnvironment", () => {
       "HOMEBREW_REPOSITORY",
       "XDG_CONFIG_HOME",
       "XDG_DATA_HOME",
+      "LYGOS_PATH",
     ]);
     expect(env.PATH).toBe("/home/linuxbrew/.linuxbrew/bin:/usr/bin");
     expect(env.SSH_AUTH_SOCK).toBe("/tmp/secretive.sock");
@@ -130,6 +132,7 @@ describe("syncShellEnvironment", () => {
       "HOMEBREW_REPOSITORY",
       "XDG_CONFIG_HOME",
       "XDG_DATA_HOME",
+      "LYGOS_PATH",
     ]);
     expect(readEnvironment).toHaveBeenNthCalledWith(2, "/bin/zsh", [
       "PATH",
@@ -139,6 +142,7 @@ describe("syncShellEnvironment", () => {
       "HOMEBREW_REPOSITORY",
       "XDG_CONFIG_HOME",
       "XDG_DATA_HOME",
+      "LYGOS_PATH",
     ]);
     expect(readLaunchctlPath).toHaveBeenCalledTimes(1);
     expect(logWarning).toHaveBeenCalledWith(
