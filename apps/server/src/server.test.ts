@@ -83,6 +83,9 @@ import {
 import { ServerLifecycleEvents, type ServerLifecycleEventsShape } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup, type ServerRuntimeStartupShape } from "./serverRuntimeStartup.ts";
 import { ServerSettingsService, type ServerSettingsShape } from "./serverSettings.ts";
+import { LinearManager } from "./linear/Services/LinearManager.ts";
+import { SetupManager } from "./setup/Services/SetupManager.ts";
+import { ServiceManager } from "./services/Services/ServiceManager.ts";
 import { TerminalManager, type TerminalManagerShape } from "./terminal/Services/Manager.ts";
 import {
   BrowserTraceCollector,
@@ -645,6 +648,37 @@ const buildAppUnderTest = (options?: {
         }),
       ),
       Layer.provideMerge(makeAuthTestLayer()),
+      Layer.provide(
+        Layer.mock(ServiceManager)({
+          list: () => Effect.succeed({ services: [], tasks: [], configLoaded: false }),
+          start: () =>
+            Effect.succeed({ id: "", type: "docker", status: "stopped", ports: [], depends: [] }),
+          stop: () =>
+            Effect.succeed({ id: "", type: "docker", status: "stopped", ports: [], depends: [] }),
+          restart: () =>
+            Effect.succeed({ id: "", type: "docker", status: "stopped", ports: [], depends: [] }),
+          startTask: () =>
+            Effect.succeed({ id: "", status: "stopped", intervalSeconds: 30, depends: [] }),
+          stopTask: () =>
+            Effect.succeed({ id: "", status: "stopped", intervalSeconds: 30, depends: [] }),
+          streamStatus: Stream.empty,
+        }),
+      ),
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.mock(LinearManager)({
+            list: () => Effect.succeed({ issues: [], labels: [], connected: false }),
+            refresh: () => Effect.succeed({ issues: [], labels: [], connected: false }),
+            assignLabel: () => Effect.succeed({ issueId: "", identifier: "", labels: [] }),
+            streamStatus: Stream.empty,
+          }),
+          Layer.mock(SetupManager)({
+            list: () => Effect.succeed({ checks: [], checking: false }),
+            check: () => Effect.succeed({ checks: [], checking: false }),
+            streamStatus: Stream.empty,
+          }),
+        ),
+      ),
       Layer.provide(workspaceAndProjectServicesLayer),
       Layer.provideMerge(FetchHttpClient.layer),
       Layer.provide(layerConfig),

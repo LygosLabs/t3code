@@ -31,6 +31,9 @@ import * as GitHubCli from "./sourceControl/GitHubCli.ts";
 import * as GitLabCli from "./sourceControl/GitLabCli.ts";
 import * as TextGeneration from "./textGeneration/TextGeneration.ts";
 import { ProviderInstanceRegistryHydrationLive } from "./provider/Layers/ProviderInstanceRegistryHydration.ts";
+import { LinearManagerLive } from "./linear/Layers/LinearManager.ts";
+import { SetupManagerLive } from "./setup/Layers/SetupManager.ts";
+import { ServiceManagerLive } from "./services/Layers/ServiceManager.ts";
 import { TerminalManagerLive } from "./terminal/Layers/Manager.ts";
 import * as GitManager from "./git/GitManager.ts";
 import { KeybindingsLive } from "./keybindings.ts";
@@ -274,7 +277,17 @@ const RuntimeCoreDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(AuthLayerLive),
 );
 
-const RuntimeDependenciesLive = RuntimeCoreDependenciesLive.pipe(
+// Lygos fork additions. SetupManagerLive and LinearManagerLive depend on
+// ServerSettingsService, so RuntimeCoreDependenciesLive (which provides it)
+// must be provided to the fork services — not the other way around — or
+// ServerSettingsService leaks out as a requirement of the runtime.
+const RuntimeForkServicesLive = Layer.mergeAll(
+  ServiceManagerLive,
+  SetupManagerLive,
+  LinearManagerLive,
+).pipe(Layer.provideMerge(RuntimeCoreDependenciesLive));
+
+const RuntimeDependenciesLive = RuntimeForkServicesLive.pipe(
   // Misc.
   Layer.provideMerge(AnalyticsServiceLayerLive),
   Layer.provideMerge(OpenLive),

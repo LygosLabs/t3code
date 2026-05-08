@@ -166,6 +166,34 @@ const buildCmd = Command.make(
       } else {
         yield* Effect.logWarning("[cli] Web dist not found — skipping client bundle.");
       }
+
+      // Bundle lygos-services.yaml into dist/ (fallback for packaged builds).
+      // Canonical source lives in $LYGOS_PATH/lygos-dev/lygos-services.yaml;
+      // we resolve it via LYGOS_PATH or the conventional sibling layout
+      // (../lygos-dev relative to this repo root).
+      const servicesYamlCandidates = [
+        process.env.LYGOS_PATH
+          ? path.join(process.env.LYGOS_PATH, "lygos-dev", "lygos-services.yaml")
+          : null,
+        path.join(repoRoot, "..", "lygos-dev", "lygos-services.yaml"),
+        path.join(repoRoot, "lygos-services.yaml"),
+      ].filter((p): p is string => p !== null);
+
+      const servicesYamlTarget = path.join(serverDir, "dist/lygos-services.yaml");
+      let bundled = false;
+      for (const candidate of servicesYamlCandidates) {
+        if (yield* fs.exists(candidate)) {
+          yield* fs.copyFile(candidate, servicesYamlTarget);
+          yield* Effect.log(`[cli] Bundled lygos-services.yaml from ${candidate} into dist/`);
+          bundled = true;
+          break;
+        }
+      }
+      if (!bundled) {
+        yield* Effect.logWarning(
+          "[cli] lygos-services.yaml not found in any candidate path — skipping bundle.",
+        );
+      }
     }),
 ).pipe(Command.withDescription("Build the server package (tsdown + bundle web client)."));
 
