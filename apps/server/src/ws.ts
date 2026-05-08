@@ -43,6 +43,9 @@ import { ProviderRegistry } from "./provider/Services/ProviderRegistry.ts";
 import { ServerLifecycleEvents } from "./serverLifecycleEvents.ts";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup.ts";
 import { redactServerSettingsForClient, ServerSettingsService } from "./serverSettings.ts";
+import { LinearManager } from "./linear/Services/LinearManager.ts";
+import { SetupManager } from "./setup/Services/SetupManager.ts";
+import { ServiceManager } from "./services/Services/ServiceManager.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
@@ -150,6 +153,9 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
       const gitWorkflow = yield* GitWorkflowService;
       const vcsProvisioning = yield* VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster;
+      const linearManager = yield* LinearManager;
+      const setupManager = yield* SetupManager;
+      const serviceManager = yield* ServiceManager;
       const terminalManager = yield* TerminalManager;
       const providerRegistry = yield* ProviderRegistry;
       const config = yield* ServerConfig;
@@ -951,6 +957,75 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
               "rpc.aggregate": "git",
             },
           ),
+        // ── Linear ────────────────────────────────────────────────────────
+        [WS_METHODS.linearList]: (_input) =>
+          observeRpcEffect(WS_METHODS.linearList, linearManager.list(), {
+            "rpc.aggregate": "linear",
+          }),
+        [WS_METHODS.linearRefresh]: (_input) =>
+          observeRpcEffect(WS_METHODS.linearRefresh, linearManager.refresh(), {
+            "rpc.aggregate": "linear",
+          }),
+        [WS_METHODS.linearAssignLabel]: (input) =>
+          observeRpcEffect(WS_METHODS.linearAssignLabel, linearManager.assignLabel(input), {
+            "rpc.aggregate": "linear",
+          }),
+        [WS_METHODS.subscribeLinearStatus]: (_input) =>
+          observeRpcStream(WS_METHODS.subscribeLinearStatus, linearManager.streamStatus, {
+            "rpc.aggregate": "linear",
+          }),
+
+        // ── Setup ────────────────────────────────────────────────────────
+        [WS_METHODS.setupList]: (_input) =>
+          observeRpcEffect(WS_METHODS.setupList, setupManager.list(), {
+            "rpc.aggregate": "setup",
+          }),
+        [WS_METHODS.setupCheck]: (input) =>
+          observeRpcEffect(WS_METHODS.setupCheck, setupManager.check(input), {
+            "rpc.aggregate": "setup",
+          }),
+        [WS_METHODS.subscribeSetupStatus]: (_input) =>
+          observeRpcStream(WS_METHODS.subscribeSetupStatus, setupManager.streamStatus, {
+            "rpc.aggregate": "setup",
+          }),
+
+        // ── Services ──────────────────────────────────────────────────────
+        [WS_METHODS.servicesList]: (_input) =>
+          observeRpcEffect(WS_METHODS.servicesList, serviceManager.list(), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.servicesStart]: (input) =>
+          observeRpcEffect(WS_METHODS.servicesStart, serviceManager.start(input), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.servicesStop]: (input) =>
+          observeRpcEffect(WS_METHODS.servicesStop, serviceManager.stop(input), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.servicesRestart]: (input) =>
+          observeRpcEffect(WS_METHODS.servicesRestart, serviceManager.restart(input), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.servicesStartTask]: (input) =>
+          observeRpcEffect(WS_METHODS.servicesStartTask, serviceManager.startTask(input), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.servicesStopTask]: (input) =>
+          observeRpcEffect(WS_METHODS.servicesStopTask, serviceManager.stopTask(input), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.servicesGetLogs]: (input) =>
+          observeRpcEffect(WS_METHODS.servicesGetLogs, serviceManager.getLogs(input), {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.subscribeServicesStatus]: (_input) =>
+          observeRpcStream(WS_METHODS.subscribeServicesStatus, serviceManager.streamStatus, {
+            "rpc.aggregate": "services",
+          }),
+        [WS_METHODS.subscribeServiceLogs]: (input) =>
+          observeRpcStream(WS_METHODS.subscribeServiceLogs, serviceManager.streamLogs(input), {
+            "rpc.aggregate": "services",
+          }),
         [WS_METHODS.gitPreparePullRequestThread]: (input) =>
           observeRpcEffect(
             WS_METHODS.gitPreparePullRequestThread,

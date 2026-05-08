@@ -4,7 +4,9 @@ import {
   ChevronRightIcon,
   CloudIcon,
   FolderPlusIcon,
+  MonitorCheckIcon,
   SearchIcon,
+  ServerIcon,
   SettingsIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -96,6 +98,9 @@ import {
 } from "../threadRoutes";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { formatRelativeTimeLabel } from "../timestampFormat";
+import { LinearSidebarStatus } from "./linear/LinearSidebarStatus";
+import { ServicesSidebarStatus } from "./services/ServicesSidebarStatus";
+import { SetupSidebarStatus } from "./setup/SetupSidebarStatus";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { Kbd } from "./ui/kbd";
 import {
@@ -2227,17 +2232,36 @@ const SidebarProjectListRow = memo(function SidebarProjectListRow(props: Sidebar
   );
 });
 
-function T3Wordmark() {
+function LygosLogo() {
   return (
     <svg
-      aria-label="T3"
-      className="h-2.5 w-auto shrink-0 text-foreground"
-      viewBox="15.5309 37 94.3941 56.96"
+      aria-label="Lygos"
+      width="20"
+      height="20"
+      viewBox="0 0 58 58"
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      className="shrink-0"
     >
       <path
-        d="M33.4509 93V47.56H15.5309V37H64.3309V47.56H46.4109V93H33.4509ZM86.7253 93.96C82.832 93.96 78.9653 93.4533 75.1253 92.44C71.2853 91.3733 68.032 89.88 65.3653 87.96L70.4053 78.04C72.5386 79.5867 75.0186 80.8133 77.8453 81.72C80.672 82.6267 83.5253 83.08 86.4053 83.08C89.6586 83.08 92.2186 82.44 94.0853 81.16C95.952 79.88 96.8853 78.12 96.8853 75.88C96.8853 73.7467 96.0586 72.0667 94.4053 70.84C92.752 69.6133 90.0853 69 86.4053 69H80.4853V60.44L96.0853 42.76L97.5253 47.4H68.1653V37H107.365V45.4L91.8453 63.08L85.2853 59.32H89.0453C95.9253 59.32 101.125 60.8667 104.645 63.96C108.165 67.0533 109.925 71.0267 109.925 75.88C109.925 79.0267 109.099 81.9867 107.445 84.76C105.792 87.48 103.259 89.6933 99.8453 91.4C96.432 93.1067 92.0586 93.96 86.7253 93.96Z"
-        fill="currentColor"
+        d="M0.108 33.745a1.47 1.47 0 0 1-.108-.538V1.466C0 .656.325 0 1.468 0h11.522c.389 0 .762.156 1.037.43l10.131 10.118a1.464 1.464 0 0 1 0 2.072L2.506 34.243a1.468 1.468 0 0 1-2.398-.498Z"
+        fill="#00ACC1"
+      />
+      <path
+        d="M57.753 1.466v11.506a1.46 1.46 0 0 1-.108.557 1.47 1.47 0 0 1-.323.48L47.191 24.125a1.467 1.467 0 0 1-2.075 0L23.463 2.503a1.468 1.468 0 0 1 .48-2.395A1.47 1.47 0 0 1 24.501 0h31.784c.81 0 1.468.656 1.468 1.466Z"
+        fill="#00ACC1"
+      />
+      <path
+        d="M57.646 23.93c.07.17.107.353.107.538v31.74a1.468 1.468 0 0 1-1.468 1.467H44.764a1.467 1.467 0 0 1-1.038-.43L33.595 47.127a1.464 1.464 0 0 1 0-2.072l21.652-21.623a1.468 1.468 0 0 1 2.399.498Z"
+        fill="#00ACC1"
+      />
+      <path
+        d="M16.318 27.801 27.839 16.296a1.467 1.467 0 0 1 2.075 0L41.435 27.8a1.464 1.464 0 0 1 0 2.073L29.914 41.38a1.467 1.467 0 0 1-2.075 0L16.318 29.874a1.464 1.464 0 0 1 0-2.073Z"
+        fill="#00ACC1"
+      />
+      <path
+        d="M34.613 55.671a1.467 1.467 0 0 1-1.36 2.004H1.468A1.468 1.468 0 0 1 0 56.209V44.703c.006-.19.042-.378.108-.557a1.47 1.47 0 0 1 .323-.48L10.562 33.55a1.467 1.467 0 0 1 2.075 0l21.652 21.623c.146.138.257.31.324.498Z"
+        fill="#00ACC1"
       />
     </svg>
   );
@@ -2396,7 +2420,7 @@ const SidebarChromeHeader = memo(function SidebarChromeHeader({
               className="ml-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md outline-hidden ring-ring transition-colors hover:text-foreground focus-visible:ring-2"
               to="/"
             >
-              <T3Wordmark />
+              <LygosLogo />
               <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
                 Code
               </span>
@@ -2425,6 +2449,24 @@ const SidebarChromeHeader = memo(function SidebarChromeHeader({
 const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
+  const handleServicesClick = useCallback(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+    void navigate({ to: "/services" });
+  }, [isMobile, navigate, setOpenMobile]);
+  const handleLinearClick = useCallback(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+    void navigate({ to: "/linear" });
+  }, [isMobile, navigate, setOpenMobile]);
+  const handleSetupClick = useCallback(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+    void navigate({ to: "/setup" });
+  }, [isMobile, navigate, setOpenMobile]);
   const handleSettingsClick = useCallback(() => {
     if (isMobile) {
       setOpenMobile(false);
@@ -2436,6 +2478,49 @@ const SidebarChromeFooter = memo(function SidebarChromeFooter() {
     <SidebarFooter className="p-2">
       <SidebarUpdatePill />
       <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="sm"
+            className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+            onClick={handleServicesClick}
+          >
+            <ServerIcon className="size-3.5" />
+            <span className="text-xs">Services</span>
+            <ServicesSidebarStatus />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="sm"
+            className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+            onClick={handleLinearClick}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 100 100"
+              className="size-3.5"
+            >
+              <path
+                fill="currentColor"
+                d="M1.225 61.523c-.222-.949.908-1.546 1.597-.857L39.334 97.178c.689.689.092 1.819-.857 1.596C20.052 94.452 5.548 79.949 1.225 61.523ZM.002 46.889a1.075 1.075 0 0 1 .29.761L52.35 99.709c.2.2.477.307.76.289 2.37-.147 4.694-.46 6.963-.926.764-.157 1.03-1.096.478-1.648L2.576 39.449c-.552-.552-1.491-.287-1.648.478A50.08 50.08 0 0 0 .002 46.89ZM4.211 29.705a1.074 1.074 0 0 1 .208 1.1l64.776 64.776c.29.29.726.374 1.1.208a49.648 49.648 0 0 0 5.186-2.684c.552-.328.637-1.087.183-1.541L8.436 24.337c-.454-.454-1.213-.369-1.541.183a49.662 49.662 0 0 0-2.684 5.185ZM12.659 18.074c-.37-.37-.393-.964-.044-1.354C21.78 6.46 35.111 0 49.952 0 77.593 0 100 22.407 100 50.048c0 14.84-6.46 28.172-16.72 37.338-.39.348-.984.326-1.354-.045L12.659 18.074Z"
+              />
+            </svg>
+            <span className="text-xs">Linear</span>
+            <LinearSidebarStatus />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="sm"
+            className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+            onClick={handleSetupClick}
+          >
+            <MonitorCheckIcon className="size-3.5" />
+            <span className="text-xs">Setup</span>
+            <SetupSidebarStatus />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
         <SidebarMenuItem>
           <SidebarMenuButton
             size="sm"
